@@ -1,0 +1,88 @@
+diff --git a/cmake/compile_definitions/linux.cmake b/cmake/compile_definitions/linux.cmake
+index e4ed683..f0e0900 100644
+--- a/cmake/compile_definitions/linux.cmake
++++ b/cmake/compile_definitions/linux.cmake
+@@ -113,7 +113,9 @@ if(LIBVA_FOUND)
+     list(APPEND PLATFORM_LIBRARIES ${LIBVA_LIBRARIES} ${LIBVA_DRM_LIBRARIES})
+     list(APPEND PLATFORM_TARGET_FILES
+             "${CMAKE_SOURCE_DIR}/src/platform/linux/vaapi.h"
+-            "${CMAKE_SOURCE_DIR}/src/platform/linux/vaapi.cpp")
++            "${CMAKE_SOURCE_DIR}/src/platform/linux/vaapi.cpp"
++            "${CMAKE_SOURCE_DIR}/src/platform/linux/magewell.cpp"
++            "${CMAKE_SOURCE_DIR}/src/platform/linux/magewell_encode.cpp")
+ endif()
+ 
+ # wayland
+diff --git a/src/platform/linux/misc.cpp b/src/platform/linux/misc.cpp
+index 9da8733..03e90be 100644
+--- a/src/platform/linux/misc.cpp
++++ b/src/platform/linux/misc.cpp
+@@ -786,12 +786,19 @@ namespace platf {
+ #endif
+ #ifdef SUNSHINE_BUILD_X11
+       X11,  ///< X11
++#endif
++#ifdef SUNSHINE_BUILD_VAAPI
++      MAGEWELL,
+ #endif
+       MAX_FLAGS  ///< The maximum number of flags
+     };
+   }  // namespace source
+ 
+   static std::bitset<source::MAX_FLAGS> sources;
++#ifdef SUNSHINE_BUILD_VAAPI
++  std::vector<std::string> magewell_display_names();
++  std::shared_ptr<display_t> magewell_display(mem_type_e, const std::string &, const video::config_t &);
++#endif
+ 
+ #ifdef SUNSHINE_BUILD_CUDA
+   std::vector<std::string> nvfbc_display_names();
+@@ -830,6 +837,9 @@ namespace platf {
+ #endif
+ 
+   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
++#ifdef SUNSHINE_BUILD_VAAPI
++    if (sources[source::MAGEWELL]) return magewell_display_names();
++#endif
+ #ifdef SUNSHINE_BUILD_CUDA
+     // display using NvFBC only supports mem_type_e::cuda
+     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
+@@ -864,6 +874,9 @@ namespace platf {
+   }
+ 
+   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
++#ifdef SUNSHINE_BUILD_VAAPI
++    if (sources[source::MAGEWELL]) return magewell_display(hwdevice_type, display_name, config);
++#endif
+ #ifdef SUNSHINE_BUILD_CUDA
+     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
+       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
+@@ -947,6 +960,9 @@ namespace platf {
+     }
+ #endif
+ 
++#ifdef SUNSHINE_BUILD_VAAPI
++    if (config::video.capture == "magewell" && !magewell_display_names().empty()) sources[source::MAGEWELL] = true;
++#endif
+     if (sources.none()) {
+       BOOST_LOG(error) << "Unable to initialize capture method"sv;
+       return nullptr;
+diff --git a/src/video.cpp b/src/video.cpp
+index 8f6b69c..4e27baf 100644
+--- a/src/video.cpp
++++ b/src/video.cpp
+@@ -2009,6 +2009,14 @@ namespace video {
+     std::unique_ptr<platf::encode_device_t> result;
+ 
+     auto colorspace = colorspace_from_client_config(config, disp.is_hdr());
++    if (config::video.capture == "magewell") {
++      // Capture is already NV12 limited Rec.709, including during encoder probes.
++      // Reject unsupported HDR/4:4:4 rather than advertise silent conversion.
++      if (colorspace.bit_depth != 8 || config.chromaSamplingType != 0) {
++        return {};
++      }
++      colorspace = {colorspace_e::rec709, false, 8};
++    }
+ 
+     platf::pix_fmt_e pix_fmt;
+     if (config.chromaSamplingType == 1) {

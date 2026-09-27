@@ -1,0 +1,3 @@
+Raspberry Pi pico-sdk: a1438dff1d38bd9c65dbd693f0e5db4b9ae91779 (with its TinyUSB submodule).
+Profile generator source: wiredopposite/tusb_gamepad at 5e5ee00ee86a0274b9cb9edf36621e9ce9476ad8.
+Vendor trees are not included. Derived profile notices are in ../relay/PROFILE-LICENSE.

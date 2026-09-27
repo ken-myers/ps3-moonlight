@@ -1,0 +1,5 @@
+Sunshine integration patch and backend: GPL-3.0-only, matching upstream Sunshine.
+Upstream: https://github.com/LizardByte/Sunshine (v2025.924.154138).
+Backend files belong in src/platform/linux/ of the upstream source tree.
+Expects the public headers from Magewell ProCaptureForLinux_1.3.4458 in
+src/platform/linux/magewell_sdk/; vendor headers and drivers are not included.
